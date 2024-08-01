@@ -33,7 +33,7 @@ contract HelperConfig is Script {
     string public constant WETH_SYMBOL = "WETH";
     string public constant WBTC_NAME = "Wrapped Bitcoin";
     string public constant WBTC_SYMBOL = "WBTC";
-    uint256 public constant INITIAL_MOCK_BALANCE = 10000e8;
+    uint256 public constant INITIAL_MOCK_BALANCE = 10000e18;
 
     constructor(uint256 chainId) {
         if (chainId == LOCAL_CHAIN_ID) {

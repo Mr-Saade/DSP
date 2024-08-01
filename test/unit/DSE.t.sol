@@ -6,21 +6,24 @@ import "../../script/DspDeploy.s.sol";
 import "../../src/DS.sol";
 import "../../src/DSE.sol";
 import "../../src/Mocks/ERC20Mock.sol";
+import "../../src/Mocks/MockV3Aggregator.sol";
 
 contract StablecoinEngineTest is Test {
     StablecoinEngine public stablecoinEngine;
     Stablecoin public stablecoin;
+    address public wethUsdPriceFeed;
     address public weth;
     address public wbtc;
     address public alice = makeAddr("alice");
     address public bob = makeAddr("bob");
-    uint256 startingUserBalance = 100e8;
+    uint256 constant MINT_AMOUNT = 10000 * 10 ** 18;
+    uint256 startingUserBalance = 100e18;
 
-    uint256 depositAmount = 80e8;
+    uint256 depositAmount = 10e18;
 
     function setUp() public {
         DeployScript deployScript = new DeployScript();
-        (stablecoin, stablecoinEngine, weth, wbtc, , ) = deployScript.run();
+        (stablecoin, stablecoinEngine, weth, wbtc, wethUsdPriceFeed,) = deployScript.run();
 
         //mint initial collateral tokens to test addresses thus, weth/wbtc
         vm.prank(alice);
@@ -46,71 +49,62 @@ contract StablecoinEngineTest is Test {
         _;
     }
 
+    modifier MintStableCoin(address user) {
+        vm.prank(user);
+        stablecoinEngine.mintStablecoin(MINT_AMOUNT);
+        _;
+    }
+
     function testDepositCollateral() public DepositWethCollateral {
-        assertEq(
-            stablecoinEngine.s_collateralBalances(alice, weth),
-            depositAmount
-        );
+        assertEq(stablecoinEngine.s_collateralBalances(alice, weth), depositAmount);
     }
 
     function testWithdrawCollateral() public DepositWethCollateral {
         uint256 withdrawAmount = depositAmount / 2;
         vm.prank(alice);
         stablecoinEngine.withdrawCollateral(weth, withdrawAmount);
-        assertEq(
-            stablecoinEngine.s_collateralBalances(alice, weth),
-            depositAmount - withdrawAmount
-        );
+        assertEq(stablecoinEngine.s_collateralBalances(alice, weth), depositAmount - withdrawAmount);
     }
 
-    function testMintStablecoin() public DepositWbtcCollateral {
-        uint256 mintAmount = 40;
-        // Debugging: Print the price feed values
-        uint256 wbtcPrice = stablecoinEngine.getLatestPrice(
-            stablecoinEngine.s_wbtcPriceFeed()
-        );
-        console.log("WBTC Price:", wbtcPrice);
-
-        // Debugging: Print the total collateral value
-        uint256 totalCollateralValue = stablecoinEngine.getTotalCollateralValue(
-            bob
-        );
-        console.log("Total Collateral Value (Bob):", totalCollateralValue);
-
-        // Debugging: Print the required collateral value
-        uint256 requiredCollateral = (mintAmount *
-            stablecoinEngine.s_collateralizationRatio() *
-            stablecoinEngine.COLLATERAL_DECIMALS()) / 100;
-        console.log("Required Collateral Value (Bob):", requiredCollateral);
-        stablecoinEngine.mintStablecoin(mintAmount);
-        assertEq(stablecoin.balanceOf(bob), mintAmount);
+    function testMintStablecoin() public DepositWbtcCollateral MintStableCoin(bob) {
+        assertEq(stablecoin.balanceOf(bob), MINT_AMOUNT);
     }
 
-    // function testBurnStablecoin() public {
-    //     uint256 mintAmount = 1000 * 10 ** 18;
-    //     uint256 burnAmount = 500 * 10 ** 18;
-    //     stablecoinEngine.mintStablecoin(mintAmount);
-    //     stablecoinEngine.burnStablecoin(burnAmount);
-    //     assertEq(stablecoin.balanceOf(address(this)), mintAmount - burnAmount);
-    // }
+    function testBurnStablecoin() public DepositWbtcCollateral MintStableCoin(bob) {
+        uint256 burnAmount = 40 * 10 ** 18;
+        vm.prank(bob);
+        stablecoinEngine.burnStablecoin(burnAmount);
+        assertEq(stablecoin.balanceOf(bob), MINT_AMOUNT - burnAmount);
+    }
 
-    // function testLiquidate() public {
-    //     // Set up a user with collateral and debt
-    //     address user = address(1);
+    function testLiquidate()
+        public
+        DepositWethCollateral
+        DepositWbtcCollateral
+        MintStableCoin(alice)
+        MintStableCoin(bob)
+    {
+        // Simulate the user's position being under-collateralized by plummeting eth price
+        // Check Alice's collateral value before updating the price
+        uint256 collateralValueBefore = stablecoinEngine.getTotalCollateralValue(alice);
+        console.log("Collateral Value Before:", collateralValueBefore);
 
-    //     uint256 mintAmount = 500 * 10 ** 18;
+        // Update the price feed to simulate a plummeting ETH price
+        MockV3Aggregator(wethUsdPriceFeed).updateAnswer(500 * 10 ** 8); // Set ETH price to $500
 
-    //     stablecoinEngine.depositCollateral(weth, depositAmount);
-    //     stablecoinEngine.mintStablecoin(mintAmount);
+        // Check Alice's collateral value after the price drop
+        uint256 collateralValueAfter = stablecoinEngine.getTotalCollateralValue(alice);
+        console.log("Collateral Value After:", collateralValueAfter);
 
-    //     // Lower the user's collateral to make them under-collateralized
-    //     stablecoinEngine.withdrawCollateral(weth, 800 * 10 ** 18);
+        // Ensure Alice's position is now under-collateralized
+        assertFalse(stablecoinEngine.isAboveCollateralizationRatio(alice, MINT_AMOUNT));
 
-    //     // Liquidate the user
-    //     stablecoinEngine.liquidate(user);
+        // Liquidate Alice's position
+        vm.prank(bob);
+        stablecoinEngine.liquidate(alice);
 
-    //     // Verify the user's debt is cleared and liquidator received the collateral
-    //     assertEq(stablecoinEngine.s_stablecoinDebt(user), 0);
-    //     assertGt(stablecoinEngine.s_collateralBalances(address(this), weth), 0);
-    // }
+        // Verify the user's debt is cleared and liquidator received the collateral
+        assertEq(stablecoinEngine.s_stablecoinDebt(alice), 0);
+        assertGt(stablecoinEngine.s_collateralBalances(bob, weth), 0);
+    }
 }

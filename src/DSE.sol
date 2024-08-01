@@ -5,6 +5,7 @@ import "./DS.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "forge-std/console.sol";
 
 /// @title Stablecoin Engine Contract
 /// @dev Controls the logic for stablecoin minting, burning, collateral management, and liquidation
@@ -209,12 +210,14 @@ contract StablecoinEngine is ReentrancyGuard {
         uint256 newLiquidatorCollateralValue = getTotalCollateralValue(
             msg.sender
         ) + totalCollateralLiquidated;
+        /*BUG: The total collateral value of the liquidator's collateral is supposed to be added to the value of the 
+        totalCollateralLiquidated not the amouunt.
+        */
         uint256 newLiquidatorDebt = s_stablecoinDebt[msg.sender] +
             totalDebtBurned;
         require(
-            ((newLiquidatorCollateralValue * COLLATERAL_DECIMALS) /
-                newLiquidatorDebt) >=
-                ((s_collateralizationRatio * COLLATERAL_DECIMALS) / 100),
+            ((newLiquidatorCollateralValue * 1e10) / newLiquidatorDebt) >=
+                (s_collateralizationRatio / 100),
             "Liquidator below collateralization ratio"
         );
 
@@ -274,10 +277,9 @@ contract StablecoinEngine is ReentrancyGuard {
 
         uint256 collateralValue = getTotalCollateralValue(user);
 
-        uint256 requiredCollateral = (debt *
-            s_collateralizationRatio *
-            COLLATERAL_DECIMALS) / 100;
-        return collateralValue >= requiredCollateral;
+        uint256 requiredCollateral = (debt * s_collateralizationRatio) / 100;
+
+        return collateralValue >= requiredCollateral / 1e10;
     }
 
     /// @notice Get the total collateral value of a user
@@ -290,6 +292,7 @@ contract StablecoinEngine is ReentrancyGuard {
             getLatestPrice(s_wethPriceFeed)) / COLLATERAL_DECIMALS;
         uint256 wbtcValue = (s_collateralBalances[user][s_wbtc] *
             getLatestPrice(s_wbtcPriceFeed)) / COLLATERAL_DECIMALS;
+
         return wethValue + wbtcValue;
     }
 

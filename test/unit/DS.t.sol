@@ -10,8 +10,8 @@ contract StablecoinTest is Test {
     Stablecoin stablecoin;
     StablecoinEngine stablecoinEngine;
     address public stablecoinEngineAddress;
-    uint256 public constant MINT_AMOUNT = 1000;
-    uint256 public constant BURN_AMOUNT = 500;
+    uint256 public constant MINT_AMOUNT = 1000e18;
+    uint256 public constant BURN_AMOUNT = 500e18;
 
     function setUp() public {
         DeployScript deployScript = new DeployScript();
