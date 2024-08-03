@@ -25,23 +25,11 @@ contract StablecoinEngine is ReentrancyGuard {
     mapping(address => mapping(address => uint256)) public s_collateralBalances; // User -> (Token -> Amount)
     mapping(address => uint256) public s_stablecoinDebt;
 
-    event CollateralDeposited(
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
-    event CollateralWithdrawn(
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
+    event CollateralDeposited(address indexed user, address indexed token, uint256 amount);
+    event CollateralWithdrawn(address indexed user, address indexed token, uint256 amount);
     event StablecoinMinted(address indexed user, uint256 amount);
     event StablecoinBurned(address indexed user, uint256 amount);
-    event Liquidation(
-        address indexed user,
-        uint256 collateralLiquidated,
-        uint256 debtBurned
-    );
+    event Liquidation(address indexed user, uint256 collateralLiquidatedValue, uint256 debtBurned);
     event InsuranceFundContribution(uint256 amount);
 
     constructor(
@@ -72,14 +60,8 @@ contract StablecoinEngine is ReentrancyGuard {
     /// @notice Deposit collateral to mint stablecoins
     /// @param token The address of the collateral token (wETH or wBTC)
     /// @param amount The amount of collateral to deposit
-    function depositCollateral(
-        address token,
-        uint256 amount
-    ) external nonReentrant onlyPositive(amount) {
-        require(
-            token == s_weth || token == s_wbtc,
-            "Unsupported collateral token"
-        );
+    function depositCollateral(address token, uint256 amount) external nonReentrant onlyPositive(amount) {
+        require(token == s_weth || token == s_wbtc, "Unsupported collateral token");
 
         IERC20(token).transferFrom(msg.sender, address(this), amount);
         s_collateralBalances[msg.sender][token] += amount;
@@ -89,24 +71,11 @@ contract StablecoinEngine is ReentrancyGuard {
     /// @notice Withdraw collateral
     /// @param token The address of the collateral token (wETH or wBTC)
     /// @param amount The amount of collateral to withdraw
-    function withdrawCollateral(
-        address token,
-        uint256 amount
-    ) external nonReentrant onlyPositive(amount) {
+    function withdrawCollateral(address token, uint256 amount) external nonReentrant onlyPositive(amount) {
+        require(token == s_weth || token == s_wbtc, "Unsupported collateral token");
+        require(s_collateralBalances[msg.sender][token] >= amount, "Insufficient collateral balance");
         require(
-            token == s_weth || token == s_wbtc,
-            "Unsupported collateral token"
-        );
-        require(
-            s_collateralBalances[msg.sender][token] >= amount,
-            "Insufficient collateral balance"
-        );
-        require(
-            isAboveCollateralizationRatio(
-                msg.sender,
-                s_stablecoinDebt[msg.sender]
-            ),
-            "Below collateralization ratio"
+            isAboveCollateralizationRatio(msg.sender, s_stablecoinDebt[msg.sender]), "Below collateralization ratio"
         );
 
         s_collateralBalances[msg.sender][token] -= amount;
@@ -116,14 +85,9 @@ contract StablecoinEngine is ReentrancyGuard {
 
     /// @notice Mint stablecoins
     /// @param amount The amount of stablecoins to mint
-    function mintStablecoin(
-        uint256 amount
-    ) external nonReentrant onlyPositive(amount) {
+    function mintStablecoin(uint256 amount) external nonReentrant onlyPositive(amount) {
         require(
-            isAboveCollateralizationRatio(
-                msg.sender,
-                s_stablecoinDebt[msg.sender] + amount
-            ),
+            isAboveCollateralizationRatio(msg.sender, s_stablecoinDebt[msg.sender] + amount),
             "Below collateralization ratio"
         );
 
@@ -134,13 +98,8 @@ contract StablecoinEngine is ReentrancyGuard {
 
     /// @notice Burn stablecoins
     /// @param amount The amount of stablecoins to burn
-    function burnStablecoin(
-        uint256 amount
-    ) external nonReentrant onlyPositive(amount) {
-        require(
-            s_stablecoin.balanceOf(msg.sender) >= amount,
-            "Insufficient stablecoin balance"
-        );
+    function burnStablecoin(uint256 amount) external nonReentrant onlyPositive(amount) {
+        require(s_stablecoin.balanceOf(msg.sender) >= amount, "Insufficient stablecoin balance");
         require(s_stablecoinDebt[msg.sender] >= amount, "Exceeds debt amount");
 
         s_stablecoin.burn(msg.sender, amount);
@@ -151,25 +110,16 @@ contract StablecoinEngine is ReentrancyGuard {
     /// @notice Liquidate under-collateralized positions
     /// @param user The user to liquidate
     function liquidate(address user) external nonReentrant {
-        require(
-            !isAboveCollateralizationRatio(user, s_stablecoinDebt[user]),
-            "Above collateralization ratio"
-        );
+        require(!isAboveCollateralizationRatio(user, s_stablecoinDebt[user]), "Above collateralization ratio");
 
         uint256 totalDebtBurned = s_stablecoinDebt[user];
 
         // Liquidator must have enough stablecoins to cover the user's debt
-        require(
-            s_stablecoin.balanceOf(msg.sender) >= totalDebtBurned,
-            "Insufficient stablecoin balance to cover debt"
-        );
+        require(s_stablecoin.balanceOf(msg.sender) >= totalDebtBurned, "Insufficient stablecoin balance to cover debt");
 
         // Check if liquidator is not already under-collateralized
         require(
-            isAboveCollateralizationRatio(
-                msg.sender,
-                s_stablecoinDebt[msg.sender]
-            ),
+            isAboveCollateralizationRatio(msg.sender, s_stablecoinDebt[msg.sender]),
             "Liquidator already below collateralization ratio"
         );
 
@@ -177,47 +127,45 @@ contract StablecoinEngine is ReentrancyGuard {
         uint256 wethCollateralAmount = s_collateralBalances[user][s_weth];
         uint256 wbtcCollateralAmount = s_collateralBalances[user][s_wbtc];
 
-        uint256 totalCollateralLiquidated = 0;
+        uint256 totalCollateralLiquidatedWeth = 0;
+        uint256 totalCollateralLiquidatedWbtc = 0;
         uint256 totalInsuranceContribution = 0;
 
         if (wethCollateralAmount > 0) {
-            uint256 liquidationDiscountAmount = (wethCollateralAmount *
-                s_liquidationDiscount) / 100;
-            uint256 insuranceContributionAmount = (wethCollateralAmount *
-                s_insuranceFundContribution) / 100;
-            uint256 amountToLiquidator = wethCollateralAmount -
-                liquidationDiscountAmount -
-                insuranceContributionAmount;
+            uint256 liquidationDiscountAmount = (wethCollateralAmount * s_liquidationDiscount) / 100;
+            uint256 insuranceContributionAmount = (wethCollateralAmount * s_insuranceFundContribution) / 100;
+            uint256 amountToLiquidator = wethCollateralAmount - liquidationDiscountAmount - insuranceContributionAmount;
 
-            totalCollateralLiquidated += amountToLiquidator;
+            totalCollateralLiquidatedWeth += amountToLiquidator;
             totalInsuranceContribution += insuranceContributionAmount;
         }
 
         if (wbtcCollateralAmount > 0) {
-            uint256 liquidationDiscountAmount = (wbtcCollateralAmount *
-                s_liquidationDiscount) / 100;
-            uint256 insuranceContributionAmount = (wbtcCollateralAmount *
-                s_insuranceFundContribution) / 100;
-            uint256 amountToLiquidator = wbtcCollateralAmount -
-                liquidationDiscountAmount -
-                insuranceContributionAmount;
+            uint256 liquidationDiscountAmount = (wbtcCollateralAmount * s_liquidationDiscount) / 100;
+            uint256 insuranceContributionAmount = (wbtcCollateralAmount * s_insuranceFundContribution) / 100;
+            uint256 amountToLiquidator = wbtcCollateralAmount - liquidationDiscountAmount - insuranceContributionAmount;
 
-            totalCollateralLiquidated += amountToLiquidator;
+            totalCollateralLiquidatedWbtc += amountToLiquidator;
             totalInsuranceContribution += insuranceContributionAmount;
         }
 
+        // Calculate the total value of the collateral liquidated
+        uint256 totalCollateralLiquidatedWethValue =
+            (totalCollateralLiquidatedWeth * getLatestPrice(s_wethPriceFeed)) / COLLATERAL_DECIMALS;
+        uint256 totalCollateralLiquidatedWbtcValue =
+            (totalCollateralLiquidatedWbtc * getLatestPrice(s_wbtcPriceFeed)) / COLLATERAL_DECIMALS;
+
+        // Sum the total collateral values
+        uint256 totalCollateralLiquidatedValue = totalCollateralLiquidatedWethValue + totalCollateralLiquidatedWbtcValue;
+
         // Simulate post-liquidation state to check if liquidator remains above the collateralization ratio
-        uint256 newLiquidatorCollateralValue = getTotalCollateralValue(
-            msg.sender
-        ) + totalCollateralLiquidated;
+        uint256 newLiquidatorCollateralValue = getTotalCollateralValue(msg.sender) + totalCollateralLiquidatedValue;
         /*BUG: The total collateral value of the liquidator's collateral is supposed to be added to the value of the 
         totalCollateralLiquidated not the amouunt.
         */
-        uint256 newLiquidatorDebt = s_stablecoinDebt[msg.sender] +
-            totalDebtBurned;
+        uint256 newLiquidatorDebt = s_stablecoinDebt[msg.sender] + totalDebtBurned;
         require(
-            ((newLiquidatorCollateralValue * 1e10) / newLiquidatorDebt) >=
-                (s_collateralizationRatio / 100),
+            ((newLiquidatorCollateralValue * 1e10) / newLiquidatorDebt) >= (s_collateralizationRatio / 100),
             "Liquidator below collateralization ratio"
         );
 
@@ -228,32 +176,22 @@ contract StablecoinEngine is ReentrancyGuard {
         if (wethCollateralAmount > 0) {
             IERC20(s_weth).transfer(
                 msg.sender,
-                wethCollateralAmount -
-                    (wethCollateralAmount *
-                        (s_liquidationDiscount + s_insuranceFundContribution)) /
-                    100
+                wethCollateralAmount
+                    - (wethCollateralAmount * (s_liquidationDiscount + s_insuranceFundContribution)) / 100
             );
-            s_collateralBalances[msg.sender][s_weth] +=
-                wethCollateralAmount -
-                (wethCollateralAmount *
-                    (s_liquidationDiscount + s_insuranceFundContribution)) /
-                100;
+            s_collateralBalances[msg.sender][s_weth] += wethCollateralAmount
+                - (wethCollateralAmount * (s_liquidationDiscount + s_insuranceFundContribution)) / 100;
             s_collateralBalances[user][s_weth] = 0;
         }
 
         if (wbtcCollateralAmount > 0) {
             IERC20(s_wbtc).transfer(
                 msg.sender,
-                wbtcCollateralAmount -
-                    (wbtcCollateralAmount *
-                        (s_liquidationDiscount + s_insuranceFundContribution)) /
-                    100
+                wbtcCollateralAmount
+                    - (wbtcCollateralAmount * (s_liquidationDiscount + s_insuranceFundContribution)) / 100
             );
-            s_collateralBalances[msg.sender][s_wbtc] +=
-                wbtcCollateralAmount -
-                (wbtcCollateralAmount *
-                    (s_liquidationDiscount + s_insuranceFundContribution)) /
-                100;
+            s_collateralBalances[msg.sender][s_wbtc] += wbtcCollateralAmount
+                - (wbtcCollateralAmount * (s_liquidationDiscount + s_insuranceFundContribution)) / 100;
             s_collateralBalances[user][s_wbtc] = 0;
         }
 
@@ -261,7 +199,7 @@ contract StablecoinEngine is ReentrancyGuard {
         s_stablecoinDebt[msg.sender] += totalDebtBurned;
         s_insuranceFundBalance += totalInsuranceContribution;
 
-        emit Liquidation(user, totalCollateralLiquidated, totalDebtBurned);
+        emit Liquidation(user, totalCollateralLiquidatedValue, totalDebtBurned);
         emit InsuranceFundContribution(totalInsuranceContribution);
     }
 
@@ -269,10 +207,7 @@ contract StablecoinEngine is ReentrancyGuard {
     /// @param user The user to check
     /// @param debt The user's debt
     /// @return True if above collateralization ratio, false otherwise
-    function isAboveCollateralizationRatio(
-        address user,
-        uint256 debt
-    ) public view returns (bool) {
+    function isAboveCollateralizationRatio(address user, uint256 debt) public view returns (bool) {
         if (debt == 0) return true;
 
         uint256 collateralValue = getTotalCollateralValue(user);
@@ -285,13 +220,9 @@ contract StablecoinEngine is ReentrancyGuard {
     /// @notice Get the total collateral value of a user
     /// @param user The user to check
     /// @return The total collateral value in USD using Chainlink price feeds
-    function getTotalCollateralValue(
-        address user
-    ) public view returns (uint256) {
-        uint256 wethValue = (s_collateralBalances[user][s_weth] *
-            getLatestPrice(s_wethPriceFeed)) / COLLATERAL_DECIMALS;
-        uint256 wbtcValue = (s_collateralBalances[user][s_wbtc] *
-            getLatestPrice(s_wbtcPriceFeed)) / COLLATERAL_DECIMALS;
+    function getTotalCollateralValue(address user) public view returns (uint256) {
+        uint256 wethValue = (s_collateralBalances[user][s_weth] * getLatestPrice(s_wethPriceFeed)) / COLLATERAL_DECIMALS;
+        uint256 wbtcValue = (s_collateralBalances[user][s_wbtc] * getLatestPrice(s_wbtcPriceFeed)) / COLLATERAL_DECIMALS;
 
         return wethValue + wbtcValue;
     }
@@ -299,10 +230,8 @@ contract StablecoinEngine is ReentrancyGuard {
     /// @notice Get the latest price from a Chainlink price feed
     /// @param priceFeed The Chainlink price feed address
     /// @return The latest price
-    function getLatestPrice(
-        AggregatorV3Interface priceFeed
-    ) public view returns (uint256) {
-        (, int256 price, , , ) = priceFeed.latestRoundData();
+    function getLatestPrice(AggregatorV3Interface priceFeed) public view returns (uint256) {
+        (, int256 price,,,) = priceFeed.latestRoundData();
         require(price > 0, "Invalid price data");
         return uint256(price);
     }
