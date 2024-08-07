@@ -78,6 +78,16 @@ contract StablecoinEngine is ReentrancyGuard {
             isAboveCollateralizationRatio(msg.sender, s_stablecoinDebt[msg.sender]), "Below collateralization ratio"
         );
 
+        // Calculate the new total collateral value after withdrawal
+        uint256 newCollateralBalance = s_collateralBalances[msg.sender][token] - amount;
+
+        uint256 newTotalCollateralValue = getTotalCollateralValueWithAdjustedBalance(token, newCollateralBalance);
+
+        // Check if the new collateral value meets the required collateralization ratio
+        uint256 requiredCollateral = (s_stablecoinDebt[msg.sender] * s_collateralizationRatio) / 100;
+
+        require(newTotalCollateralValue >= requiredCollateral / 1e10, "Withdrawal would cause undercollateralization");
+
         s_collateralBalances[msg.sender][token] -= amount;
         IERC20(token).transfer(msg.sender, amount);
         emit CollateralWithdrawn(msg.sender, token, amount);
@@ -99,8 +109,8 @@ contract StablecoinEngine is ReentrancyGuard {
     /// @notice Burn stablecoins
     /// @param amount The amount of stablecoins to burn
     function burnStablecoin(uint256 amount) external nonReentrant onlyPositive(amount) {
-        require(s_stablecoin.balanceOf(msg.sender) >= amount, "Insufficient stablecoin balance");
         require(s_stablecoinDebt[msg.sender] >= amount, "Exceeds debt amount");
+        require(s_stablecoin.balanceOf(msg.sender) >= amount, "Insufficient stablecoin balance");
 
         s_stablecoin.burn(msg.sender, amount);
         s_stablecoinDebt[msg.sender] -= amount;
@@ -234,5 +244,35 @@ contract StablecoinEngine is ReentrancyGuard {
         (, int256 price,,,) = priceFeed.latestRoundData();
         require(price > 0, "Invalid price data");
         return uint256(price);
+    }
+
+    // Function to get the collateral value given the collateral amount and price feed
+    function getCollateralValue(uint256 collateralAmount, AggregatorV3Interface priceFeed)
+        public
+        view
+        returns (uint256)
+    {
+        uint256 price = getLatestPrice(priceFeed);
+        uint256 collateralValue = (collateralAmount * price) / 1e18;
+        return collateralValue;
+    }
+
+    function getTotalCollateralValueWithAdjustedBalance(address token, uint256 adjustedBalance)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 wethValue;
+        uint256 wbtcValue;
+
+        if (token == s_weth) {
+            wethValue = (adjustedBalance * getLatestPrice(s_wethPriceFeed)) / COLLATERAL_DECIMALS;
+        } else if (token == s_wbtc) {
+            wbtcValue = (adjustedBalance * getLatestPrice(s_wbtcPriceFeed)) / COLLATERAL_DECIMALS;
+        } else {
+            revert("Unsupported collateral token");
+        }
+
+        return wethValue + wbtcValue;
     }
 }
