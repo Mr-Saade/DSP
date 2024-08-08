@@ -15,38 +15,23 @@ contract StablecoinEngineHandler is Test {
     uint256 public totalCollateralDeposited;
     uint96 public constant MAX_DEPOSIT_SIZE = type(uint96).max;
 
-    constructor(
-        StablecoinEngine _engine,
-        Stablecoin _stablecoin,
-        address _weth,
-        address _wbtc
-    ) {
+    constructor(StablecoinEngine _engine, Stablecoin _stablecoin, address _weth, address _wbtc) {
         stablecoinEngine = _engine;
         stablecoin = _stablecoin;
         weth = ERC20Mock(_weth);
         wbtc = ERC20Mock(_wbtc);
     }
 
-    function depositCollateral(
-        address collateralToken,
-        uint256 collateralAmount
-    ) external {
+    function depositCollateral(address collateralToken, uint256 collateralAmount) external {
         address boundedCollateralToken = boundCollateralToken(collateralToken);
 
-        uint256 boundedCollateralAmount = bound(
-            collateralAmount,
-            1,
-            MAX_DEPOSIT_SIZE
-        );
+        uint256 boundedCollateralAmount = bound(collateralAmount, 1, MAX_DEPOSIT_SIZE);
         if (boundedCollateralToken == address(weth)) {
             console.log("Depositing weth...");
             vm.startPrank(msg.sender);
             weth.mint(msg.sender, boundedCollateralAmount);
             weth.approve(address(stablecoinEngine), boundedCollateralAmount);
-            stablecoinEngine.depositCollateral(
-                address(weth),
-                boundedCollateralAmount
-            );
+            stablecoinEngine.depositCollateral(address(weth), boundedCollateralAmount);
             vm.stopPrank();
             totalCollateralDeposited += boundedCollateralAmount;
         } else if (boundedCollateralToken == address(wbtc)) {
@@ -54,35 +39,19 @@ contract StablecoinEngineHandler is Test {
             vm.startPrank(msg.sender);
             wbtc.mint(msg.sender, boundedCollateralAmount);
             wbtc.approve(address(stablecoinEngine), boundedCollateralAmount);
-            stablecoinEngine.depositCollateral(
-                address(wbtc),
-                boundedCollateralAmount
-            );
+            stablecoinEngine.depositCollateral(address(wbtc), boundedCollateralAmount);
             vm.stopPrank();
             totalCollateralDeposited += boundedCollateralAmount;
         }
     }
 
-    function redeemCollateral(
-        address collateralToken,
-        uint256 withdrawalAmount
-    ) external {
+    function redeemCollateral(address collateralToken, uint256 withdrawalAmount) external {
         address boundedCollateralToken = boundCollateralToken(collateralToken);
-        uint256 userCollateralBalance = stablecoinEngine.s_collateralBalances(
-            msg.sender,
-            boundedCollateralToken
-        );
+        uint256 userCollateralBalance = stablecoinEngine.s_collateralBalances(msg.sender, boundedCollateralToken);
         vm.assume(userCollateralBalance > 0); // Ensure user has some collateral
-        uint256 boundedWithdrawalAmount = bound(
-            withdrawalAmount,
-            1,
-            userCollateralBalance
-        );
+        uint256 boundedWithdrawalAmount = bound(withdrawalAmount, 1, userCollateralBalance);
         vm.prank(msg.sender);
-        stablecoinEngine.withdrawCollateral(
-            boundedCollateralToken,
-            boundedWithdrawalAmount
-        );
+        stablecoinEngine.withdrawCollateral(boundedCollateralToken, boundedWithdrawalAmount);
         totalCollateralDeposited -= boundedWithdrawalAmount;
     }
 
@@ -94,9 +63,7 @@ contract StablecoinEngineHandler is Test {
         stablecoinEngine.mintStablecoin(boundedAmount);
     }
 
-    function boundCollateralToken(
-        address collateralToken
-    ) internal view returns (address) {
+    function boundCollateralToken(address collateralToken) internal view returns (address) {
         // Use modular operation to bound the collateral token to either WETH or WBTC
         address[2] memory tokens = [address(weth), address(wbtc)];
         uint256 index = uint256(uint160(collateralToken)) % tokens.length;

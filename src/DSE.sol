@@ -221,10 +221,11 @@ contract StablecoinEngine is ReentrancyGuard {
         if (debt == 0) return true;
 
         uint256 collateralValue = getTotalCollateralValue(user);
+        uint256 adjustedCollateralValueWithDecimalsPrecision = collateralValue * 1e10;
 
         uint256 requiredCollateral = (debt * s_collateralizationRatio) / 100;
 
-        return collateralValue >= requiredCollateral / 1e10;
+        return adjustedCollateralValueWithDecimalsPrecision >= requiredCollateral;
     }
 
     /// @notice Get the total collateral value of a user
