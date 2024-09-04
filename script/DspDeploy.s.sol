@@ -12,18 +12,30 @@ contract DeployScript is Script {
     uint256 public constant LIQUIDATION_DISCOUNT = 10; // 10%
     uint256 public constant INSURANCE_FUND_CONTRIBUTION = 2; // 2%
 
-    function run() external returns (Stablecoin, StablecoinEngine, address, address, address, address) {
+    function run()
+        external
+        returns (
+            Stablecoin,
+            StablecoinEngine,
+            address,
+            address,
+            address,
+            address
+        )
+    {
         uint256 chainId = block.chainid;
         HelperConfig helperConfig = new HelperConfig(chainId);
-        (address wethUsdPriceFeed, address wbtcUsdPriceFeed, address weth, address wbtc, uint256 deployerPrivateKey) =
-            helperConfig.networkConfig();
+        (
+            address wethUsdPriceFeed,
+            address wbtcUsdPriceFeed,
+            address weth,
+            address wbtc,
+            uint256 deployerPrivateKey
+        ) = helperConfig.networkConfig();
         address deployer = vm.addr(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy the Stablecoin contract
         Stablecoin stablecoin = new Stablecoin(deployer);
-
-        // Deploy the StablecoinEngine contract with network-specific parameters
         StablecoinEngine stablecoinEngine = new StablecoinEngine(
             address(stablecoin),
             weth,
@@ -35,11 +47,18 @@ contract DeployScript is Script {
             wbtcUsdPriceFeed
         );
 
-        // Transfer ownership of Stablecoin to the StablecoinEngine
+        // Transferring ownership of Stablecoin to the StablecoinEngine
         stablecoin.transferOwnership(address(stablecoinEngine));
 
         vm.stopBroadcast();
 
-        return (stablecoin, stablecoinEngine, weth, wbtc, wethUsdPriceFeed, wbtcUsdPriceFeed);
+        return (
+            stablecoin,
+            stablecoinEngine,
+            weth,
+            wbtc,
+            wethUsdPriceFeed,
+            wbtcUsdPriceFeed
+        );
     }
 }

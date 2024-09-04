@@ -6,10 +6,13 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "forge-std/console.sol";
+import "../src/library/PriceFeedsLIb.sol";
 
 /// @title Stablecoin Engine Contract
 /// @dev Controls the logic for stablecoin minting, burning, collateral management, and liquidation
 contract StablecoinEngine is ReentrancyGuard {
+    using PriceFeedChecker for AggregatorV3Interface;
+
     Stablecoin public s_stablecoin;
     address public s_weth;
     address public s_wbtc;
@@ -170,9 +173,7 @@ contract StablecoinEngine is ReentrancyGuard {
 
         // Simulate post-liquidation state to check if liquidator remains above the collateralization ratio
         uint256 newLiquidatorCollateralValue = getTotalCollateralValue(msg.sender) + totalCollateralLiquidatedValue;
-        /*BUG: The total collateral value of the liquidator's collateral is supposed to be added to the value of the 
-        totalCollateralLiquidated not the amouunt.
-        */
+
         uint256 newLiquidatorDebt = s_stablecoinDebt[msg.sender] + totalDebtBurned;
         require(
             ((newLiquidatorCollateralValue * 1e10) / newLiquidatorDebt) >= (s_collateralizationRatio / 100),
@@ -242,12 +243,16 @@ contract StablecoinEngine is ReentrancyGuard {
     /// @param priceFeed The Chainlink price feed address
     /// @return The latest price
     function getLatestPrice(AggregatorV3Interface priceFeed) public view returns (uint256) {
+        priceFeed.checkPriceFreshness();
         (, int256 price,,,) = priceFeed.latestRoundData();
         require(price > 0, "Invalid price data");
         return uint256(price);
     }
 
-    // Function to get the collateral value given the collateral amount and price feed
+    /// @notice Get the collateral value of a user
+    /// @param collateralAmount The amount of collateral
+    /// @param priceFeed The Chainlink price feed
+    /// @return The collateral value in USD
     function getCollateralValue(uint256 collateralAmount, AggregatorV3Interface priceFeed)
         public
         view
@@ -258,6 +263,10 @@ contract StablecoinEngine is ReentrancyGuard {
         return collateralValue;
     }
 
+    /// @notice Get the total collateral value of a user with adjusted balance
+    /// @param token The collateral token address
+    /// @param adjustedBalance The adjusted balance
+    /// @return The total collateral value in USD
     function getTotalCollateralValueWithAdjustedBalance(address token, uint256 adjustedBalance)
         internal
         view

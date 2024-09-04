@@ -16,12 +16,15 @@ contract StablecoinEngineInvariantTest is StdInvariant, Test {
 
     address public weth;
     address public wbtc;
+    address public wethUsdPriceFeed;
+    address public wbtcUsdPriceFeed;
 
     function setUp() public {
         DeployScript deployScript = new DeployScript();
 
-        (stablecoin, stablecoinEngine, weth, wbtc,,) = deployScript.run();
-        handler = new StablecoinEngineHandler(stablecoinEngine, stablecoin, weth, wbtc);
+        (stablecoin, stablecoinEngine, weth, wbtc, wethUsdPriceFeed, wbtcUsdPriceFeed) = deployScript.run();
+        handler =
+            new StablecoinEngineHandler(stablecoinEngine, stablecoin, weth, wbtc, wethUsdPriceFeed, wbtcUsdPriceFeed);
         targetContract(address(handler));
     }
 
