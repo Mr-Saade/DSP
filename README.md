@@ -91,6 +91,9 @@ This protocol is meant to create an exogenous decentralized stablecoin pegged to
   3. Automated rebalancing mechanisms.
   4. User notification system for significant price changes.
 
+-------------------------------------------------------------------
+     
+
 - [Foundry DeFi Stablecoin](#foundry-defi-stablecoin)
 - [About](#about)
 - [Getting Started](#getting-started)
