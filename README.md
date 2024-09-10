@@ -6,6 +6,91 @@
 
 This protocol is meant to create an exogenous decentralized stablecoin pegged to $1 using Bitcoin and Ethereum as collateral types (specifically wrapped ETH and wrapped BTC) with an overcollateralized ratio mechanism. This DSP will be algorithmic, that is, the protocol will utilize smart contracts to manage minting, burning, and other key functionalities instead of a central authority, hence making it decentralized. Additional features of the protocol include liquidation, insurance fund contributions, and a liquidation discount mechanism, amongst others.
 
+## Key Components:
+
+### 1. ERC20 Stable Coin Contract:
+- **Function:** Represents the stablecoin token pegged to $1.
+- **Features:**
+  - Minting and burning of stablecoins.
+  - Transfer and approval mechanisms.
+  - Compliance with ERC20 standards.
+
+### 2. Stablecoin Engine Contract:
+- **Function:** Controls the logic for stablecoin minting, burning, collateral management, and liquidation.
+- **Features:**
+  - Algorithmic control of minting and burning based on collateral ratios.
+  - Management of collateral deposits and withdrawals (wrapped ETH and wrapped BTC).
+  - Liquidation mechanism to ensure system stability and maintain collateral health factor.
+  - Overcollateralization enforcement to mitigate risks.
+  - User interfaces for interacting with the protocol.
+
+---
+
+## Technical Details:
+
+### 1. Collateral Management:
+- **Assets:** Wrapped ETH (wETH) and Wrapped BTC (wBTC).
+- **Overcollateralization:** Users must deposit collateral exceeding the value of the stablecoins they wish to mint. For example, if the overcollateralization ratio is 150%, to mint $100 worth of stablecoins, a user must deposit $150 worth of collateral.
+- **Liquidation:** If the collateral value falls below a certain threshold, the system will trigger a liquidation call to ensure the stability of the stablecoin.
+
+### 2. Smart Contract Logic:
+- **Minting:** Users can mint stablecoins by depositing collateral. The amount of stablecoins minted is determined by the collateral value and overcollateralization ratio.
+- **Burning:** Users can burn stablecoins to withdraw their collateral.
+- **Liquidation:** The protocol will monitor collateral health and allow and incentivize third parties/users to liquidate undercollateralized positions, ensuring overall system stability.
+
+### 3. Governance and Upgrades:
+- **Decentralized Governance:** Implement a governance token for community-driven decisions on protocol parameters and upgrades.
+- **Upgradeable Contracts:** Use proxy patterns to allow for future upgrades and improvements without disrupting the existing protocol.
+
+
+## Risks & Mitigation Strategies/Lessons from Terra Luna Crash:
+
+### **Background on Terra Luna Collapse:**
+- TerraUSD (UST) was an algorithmic stablecoin pegged to $1, backed by its sister token Luna.
+- A sudden drop in UST's value led to massive redemptions, hyperinflating Luna and causing a death spiral, resulting in a $40 billion loss.
+
+### Key Risks and Mitigation Strategies:
+
+1. **Collateral Price Volatility:**
+   - **Risk:** Sharp or immediate price spikes/drops in collateral assets (wETH, wBTC).
+   - **Mitigation:**
+     - Maintain a high over-collateralization ratio (e.g., 150%).
+     - Implement dynamic adjustment of collateralization ratios.
+     - Use multiple reliable price oracles and automated rebalancing mechanisms.
+
+2. **Under-collateralization:**
+   - **Risk:** Collateral value drops below the required collateralization ratio.
+   - **Mitigation:**
+     - Implement robust liquidation mechanisms.
+     - Monitor collateral health and trigger partial liquidations if needed.
+     - Create an insurance fund to cover extreme cases.
+
+3. **Oracle Failure:**
+   - **Risk:** Inaccurate price feeds from oracles.
+   - **Mitigation:**
+     - Use multiple price oracles and implement fallback mechanisms.
+
+4. **Smart Contract Vulnerabilities:**
+   - **Risk:** Exploits and bugs.
+   - **Mitigation:** Conduct regular audits and use formal verification methods.
+
+5. **Systemic Risks:**
+   - **Risk:** Market-wide events affecting collateral assets or DeFi protocols.
+   - **Mitigation:** Diversify collateral assets and implement emergency governance protocols.
+
+---
+
+## Addressing Immediate Price Spikes:
+
+**Scenario:** A sharp price spike in collateral assets.
+
+- **Risk:** Extremely over-collateralized positions or under-collateralized positions.
+- **Mitigation Strategies:**
+  1. Real-time monitoring of collateral prices.
+  2. Dynamic adjustment of collateralization ratios.
+  3. Automated rebalancing mechanisms.
+  4. User notification system for significant price changes.
+
 - [Foundry DeFi Stablecoin](#foundry-defi-stablecoin)
 - [About](#about)
 - [Getting Started](#getting-started)
