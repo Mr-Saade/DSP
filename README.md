@@ -1,3 +1,16 @@
+- [Foundry DeFi Stablecoin](#foundry-defi-stablecoin)
+- [About](#about)
+- [Getting Started](#getting-started)
+  - [Requirements](#requirements)
+  - [Quickstart](#quickstart)
+  - [Testing](#testing)
+    - [Test Coverage](#test-coverage)
+- [Deployment to a testnet or mainnet](#deployment-to-a-testnet-or-mainnet)
+  - [Scripts](#scripts)
+  - [Estimate gas](#estimate-gas)
+- [Formatting](#formatting)
+
+
 # Foundry DeFi Stablecoin
 > **Note:** The code will be refactored in future updates to use custom errors instead of string-based reverts for better gas efficiency. This will be implemented once additional features, as outlined in the documentation, are added. Contributions to these features are welcome! Feel free to check the docs for more information on how to get involved.
 
@@ -90,21 +103,7 @@ This protocol is meant to create an exogenous decentralized stablecoin pegged to
   2. Dynamic adjustment of collateralization ratios.
   3. Automated rebalancing mechanisms.
   4. User notification system for significant price changes.
-
--------------------------------------------------------------------
      
-
-- [Foundry DeFi Stablecoin](#foundry-defi-stablecoin)
-- [About](#about)
-- [Getting Started](#getting-started)
-  - [Requirements](#requirements)
-  - [Quickstart](#quickstart)
-  - [Testing](#testing)
-    - [Test Coverage](#test-coverage)
-- [Deployment to a testnet or mainnet](#deployment-to-a-testnet-or-mainnet)
-  - [Scripts](#scripts)
-  - [Estimate gas](#estimate-gas)
-- [Formatting](#formatting)
 
 # Getting Started
 
