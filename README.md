@@ -1,4 +1,6 @@
 # Foundry DeFi Stablecoin
+> **Note:** The code will be refactored in future updates to use custom errors instead of string-based reverts for better gas efficiency. This will be implemented once additional features, as outlined in the documentation, are added. Contributions to these features are welcome! Feel free to check the docs for more information on how to get involved.
+
 
 # About
 
